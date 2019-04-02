@@ -2,11 +2,18 @@ const express = require('express')
 const mustacheExpress = require('mustache-express')
 const bodyParser = require('body-parser')
 const pgp = require('pg-promise')()
+var session = require('express-session')
 const app = express()
 const path = require('path')
 const connectionString = "postgres://localhost:5432/blogapp";
 const db = pgp(connectionString)
-console.log(db)
+
+
+app.use(session( {
+  secret: 'keyboard cat',
+  resave: false,
+  saveUninitialized: true
+}))
 
 app.use(bodyParser.urlencoded({ extended: false }))
 app.engine('mustache',mustacheExpress())
@@ -16,6 +23,41 @@ app.set('view engine','mustache')
 const VIEWS_PATH = path.join(__dirname, '/views')
 
 app.engine('mustache', mustacheExpress(VIEWS_PATH + '/partials', '.mustache'))
+
+
+app.post('/register',(req,res) => {
+  let username = req.body.username
+  let password = req.body.password
+
+  db.one('INSERT INTO userinfo (username,password) VALUES($1,$2) RETURNING userid;', [username,password])
+  res.render('login', {message: 'Thank you for registering! Please login below.'})
+})
+
+app.post('/login',(req,res) => {
+  let username = req.body.username
+  let password = req.body.password
+
+  db.one('SELECT * FROM  userinfo WHERE username = $1 AND password = $2', [username,password])
+  .then((user) => {
+    res.redirect('/index')
+  }).catch(error => {
+    res.render('login', {message: 'The User Name or Password is incorrect.  Please try again.'})
+  })
+})
+
+app.post('/logout',(req,res) => {
+  req.session.destroy(function(err) {
+    if(err) {
+      console.log(error)
+    } else {
+      res.redirect('/login')
+    }
+  })
+})
+
+app.get('/login',(req,res) => {
+  res.render('login')
+})
 
 app.get('/index', (req,res) => {
     res.render('index')
@@ -79,4 +121,3 @@ app.post('/editpost', (req,res) => {
 app.listen(3000,() => {
     console.log("Server is running...")
   })
-  
